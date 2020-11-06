@@ -59,14 +59,18 @@ class DatasetGenerator:
             # normal vector of plane (scaled to length 1)
             normal_vector = plane[:3] / np.linalg.norm(plane[:3])
             for i in range(self._num_points):
-                # creating random point and placing it on the ideal plane
-                point = np.array([random.uniform(-1, 1), random.uniform(-1, 1)])
-                point = np.append(point, ((plane[0] * point[0] + plane[1] * point[1] - plane[3]) / (-plane[2])))
-                # adding some noise (deviation from ideal plane based on given <max_deviation>)
-                if random.uniform(0, 1) < .5:
-                    point -= normal_vector * random.uniform(0, self._max_deviation)
-                else:
-                    point += normal_vector * random.uniform(0, self._max_deviation)
+                point = None
+                while True:
+                    # creating random point and placing it on the ideal plane
+                    point = np.array([random.uniform(-1, 1), random.uniform(-1, 1)])
+                    point = np.append(point, ((plane[0] * point[0] + plane[1] * point[1] - plane[3]) / (-plane[2])))
+                    # adding some noise (deviation from ideal plane based on given <max_deviation>)
+                    if random.uniform(0, 1) < .5:
+                        point -= normal_vector * random.uniform(0, self._max_deviation)
+                    else:
+                        point += normal_vector * random.uniform(0, self._max_deviation)
+                    if not np.any(point > 1) and not np.any(point < -1):
+                        break
                 points.append(point)
                 labels.append(point_label)
             point_label += 1
