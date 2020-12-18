@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import random
 import pickle
 import os
@@ -117,11 +118,15 @@ class DatasetGenerator:
             folder += "/"
 
         dataset, description = self.generate_dataset()
+        csv_out_folder = folder + "csv_out/"
+        os.mkdir(csv_out_folder)
 
         # save every problem instance
         for instance_idx in range(len(dataset)):
             with open(folder + f"instance_{instance_idx}.pkl", "wb") as file:
                 pickle.dump(dataset[instance_idx], file, protocol=pickle.HIGHEST_PROTOCOL)
+            pd.DataFrame(dataset[instance_idx]["points"]).to_csv(csv_out_folder + f"instance_{instance_idx}_points.csv",
+                                                                 index=False)
 
         # save the dataset description
         with open(folder + "description.pkl", "wb") as file:

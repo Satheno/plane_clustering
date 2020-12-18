@@ -5,7 +5,9 @@ from scipy.linalg import lstsq
 import pandas as pd
 import random
 from copy import deepcopy
-
+from tqdm import tqdm
+from scipy.special import binom
+from GreedyJoining import GreedyJoining
 
 def variant_01(instance, instance_desc, n_planes: int):
     """
@@ -225,10 +227,118 @@ def _get_octant_signs(octant):
     return octants[octant]
 
 
-def variant_02():
+def _cost_01(points, idx01, idx02, idx03):
+    # cost for idxs when associated points are all in different clusters
+    # TODO: Implement
+    return 1.0
+
+
+def _cost_02(points, idx01, idx02, idx03):
+    # cost for idxs when associated points are all in the same cluster
+    # TODO: Implement
+    return 1.0
+
+
+def _build_triples(instance):
+    triples = np.array([[0, 0, 0]])
+    points = instance["points"]
+    counter = 0
+    tmp = []
+    print(f"Generating {int(binom(len(points), 3))} Triples and associated costs")
+    for idx01 in tqdm(range(points.shape[0] - 2), "Generating Starting Triples (Outer Loop)"):
+        for idx02 in range(idx01 + 1, points.shape[0] - 1):
+            for idx03 in range(idx02 + 1, points.shape[0]):
+                # build temporary lists and appending them every 20 million values (building lists is faster than
+                # np.append but lists need a fuck-ton of RAM)
+                counter += 1
+                tmp.append([idx01, idx02, idx03])#, _cost_01(points, idx01, idx02, idx03), _cost_02(points, idx01, idx02, idx03)])
+                if counter % 20e6 == 0:
+                    triples = np.append(triples, np.array(tmp), axis=0)
+                    tmp = []
+                    counter = 0
+    if len(tmp) > 0:
+        triples = np.append(triples, np.array(tmp), axis=0)
+    return triples[1:]
+
+
+def _build_index_dict(instance, triples):
+    idx_dict = {}
+    print(f"Generating Index Dictionary with {len(instance['points'])} Entries")
+    for idx in tqdm(range(instance["points"].shape[0]), "Generating Index Dictionary"):
+        idx_dict[idx] = np.where(triples == idx)[0]
+    return idx_dict
+
+
+def variant_02(instance, instance_desc):
+    # TODO: Implement greedy joining, moving or kernighan and lin
+    # Greedy Joining
+    triples = _build_triples(instance)
+    clusters = np.array(range(instance["points"].shape[0]))
+    min_score = 1e100
+    previous_min_score = deepcopy(min_score)
+
+    while True:
+        print("Calculating scores for joins")
+        min_triple_idx = None
+        for idx, j_triple in enumerate(triples):
+            tmp_score = 0
+            tmp_clusters = deepcopy(clusters)
+
+            if len(np.unique([tmp_clusters[int(p)] for p in j_triple[:3]])) == 1:
+                # all points are in the same cluster making the join redundant --> skip
+                continue
+
+            # TODO: Outsource this block into a separate function
+            # merge clusters associated with the points in the triple, as there are at least two clusters
+            replace_idxs = []
+            for t_elem in j_triple[1:3]:
+                replace_idxs += np.where(tmp_clusters == tmp_clusters[int(t_elem)])
+            replace_idxs = np.unique(replace_idxs).astype(int)
+            # replaces all cluster ids with the cluster id of the first point in the triple
+            tmp_clusters[replace_idxs] = tmp_clusters[int(j_triple[0])]
+
+            # calculate score for this clustering with the triple join
+            for s_triple in tqdm(triples, "Inner Loop"):
+                num_clusters = len(np.unique([tmp_clusters[int(p)] for p in s_triple[:3]]))
+                if num_clusters == 1:
+                    # points in the same cluster --> use triple idx 4, i.e. cost_02 for points in the same cluster
+                    tmp_score += s_triple[4]
+                elif num_clusters == 3:
+                    # points in different clusters --> use triple idx 3, i.e. cost_01 for points in different clusters
+                    tmp_score += s_triple[3]
+
+            if tmp_score < min_score:
+                # current score is better --> replace it
+                min_score = tmp_score
+                min_triple_idx = idx
+
+        if min_score < previous_min_score:
+            # TODO: Outsource this block into a separate function
+            # new min_score is smaller than previous one, i.e. clustering gets better --> perform join with triple
+            replace_idxs = []
+            for t_elem in triples[min_triple_idx][1:3]:
+                replace_idxs += np.where(clusters == clusters[int(t_elem)])
+            replace_idxs = np.unique(replace_idxs).astype(int)
+            # replaces all cluster ids with the cluster id of the first point in the triple
+            clusters[replace_idxs] = clusters[int(triples[min_triple_idx][0])]
+        else:
+            # new min_score is higher than previous one, i.e. clustering gets worse --> terminate
+            break
+
+    print("Breakpoint")
+
+
+def variant_03(instance, instance_desc):
     # TODO: Try naive approach with triples
     # Maybe ranking multiple planes will yield good results, similar to variant_01
     # octant approach from variant_01? plane -> number of associated points as ranking?
     # triple -> 2 points + origin and distance to third point for each pair out of them
     # triple -> plane through 3 points and distance to origin
+    triples = _build_triples(instance)
+    clusters = np.array(range(instance["points"].shape[0]))
+    cluster_sizes = np.ones(clusters.shape, dtype=int)
+    print("Starting C Implementation")
+    joining = GreedyJoining(triples.astype(int), clusters.astype(int), cluster_sizes)
+    result = joining.start()
+
     pass
